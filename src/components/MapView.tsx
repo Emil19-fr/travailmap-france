@@ -39,6 +39,30 @@ function FlyController({ focus }: { focus: MapViewProps['focus'] }) {
   return null
 }
 
+/**
+ * Corrige le rendu Leaflet sur iOS / Safari (WebKit) : recalcule la taille du
+ * conteneur après le layout initial, au resize, à la rotation et quand la barre
+ * d'outils mobile apparaît/disparaît (visualViewport).
+ */
+function MapResizer() {
+  const map = useMap()
+  useEffect(() => {
+    const invalidate = () => map.invalidateSize({ animate: false })
+    // Plusieurs passes : le conteneur peut avoir une taille nulle au 1er paint sur iOS.
+    const timers = [0, 200, 600, 1200].map((d) => window.setTimeout(invalidate, d))
+    window.addEventListener('resize', invalidate)
+    window.addEventListener('orientationchange', invalidate)
+    window.visualViewport?.addEventListener('resize', invalidate)
+    return () => {
+      timers.forEach((t) => clearTimeout(t))
+      window.removeEventListener('resize', invalidate)
+      window.removeEventListener('orientationchange', invalidate)
+      window.visualViewport?.removeEventListener('resize', invalidate)
+    }
+  }, [map])
+  return null
+}
+
 /** Suit le niveau de zoom courant pour rendre l'affichage progressif. */
 function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
   const map = useMapEvents({
@@ -95,6 +119,7 @@ export default function MapView({ cities, selected, onSelectCity, focus }: MapVi
       />
 
       <ZoomControl position="bottomright" />
+      <MapResizer />
       <FlyController focus={focus} />
       <ZoomWatcher onZoom={setZoom} />
 
